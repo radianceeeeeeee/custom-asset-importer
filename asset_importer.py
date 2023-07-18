@@ -4,8 +4,6 @@ from tkinter import filedialog, simpledialog, messagebox
 from tkinter import END
 import tkinter as tk
 from enum import Enum
-from PIL import ImageTk, Image
-import re
 
 HEIGHT_WINDOW = 600
 WIDTH_WINDOW = 800
