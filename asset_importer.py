@@ -96,7 +96,6 @@ class Session():
             importButton.configure(state = tk.NORMAL)
             NPCButton.configure(state = tk.NORMAL)
             blocksButton.configure(state = tk.NORMAL)
-            copyButton.configure(state = tk.NORMAL)
 
             for e in entries:
                 currentAsset = self.find_asset_info(e, dir, AssetTag.NAME)
@@ -114,12 +113,8 @@ class Session():
 
                         if self.currentAssetButton == AssetType.BLOCK:
                             fileList.insert(END, currentAsset[1])
-                    
 
-        folderName.configure(text = dir, foreground = "black")
         self.directory = dir
-        #fileList.config(yscrollcommand = fileScroll.set)
-        #fileScroll.config(command = fileList.yview)
 
     def find_lowest_available_id(self, assetType):
         minID = 751
@@ -189,7 +184,6 @@ class Session():
                     fileList.insert(END, newAsset[1])
 
             # copying
-            #print(newAsset[0], assetType)
             self.copy_assets(newAsset[0].split("-")[1], file, self.directory, assetType)
         else:
             messagebox.showerror(title = "Invalid Asset", message = "The asset you have chosen is invalid.")
@@ -220,23 +214,8 @@ if __name__ == "__main__":
     folderContainer = tk.LabelFrame(filesContainer, text = "Current Assets")
     folderContainer.grid(row = 3, column = 0, padx = 10, pady = 10)
 
-    #folderScroll = tk.Scrollbar(folderContainer, orient = "horizontal")
-    #folderScroll.grid(row = 3, column = 0, padx = 10, pady = 10)
-
-    folderName = tk.Label(filesContainer, text = "Pick a directory first", foreground = "gray")
-    folderName.grid(row = 2, column = 0, padx = 10, pady = 10)
-
-    #fileScroll = tk.Scrollbar(folderContainer, orient = tk.VERTICAL, )
-    #fileScroll.grid(row = 4, column = 1)
-
     fileList = tk.Listbox(folderContainer)
     fileList.grid(row = 5, column = 0, padx = 10, pady = 10)
-
-    imageContainer = tk.LabelFrame(filesContainer, text = "Preview Image")
-    imageContainer.grid(row = 3, column = 1, padx = 10, pady = 10)
-
-    imagePrev = tk.Label(folderContainer, text = "Image")#, image = imageContent)
-    imagePrev.grid(row = 5, column = 1, padx = 10, pady = 10)
 
     buttonContainer = tk.LabelFrame(folderContainer, text = "")
     buttonContainer.grid(row = 4, column = 0, padx = 10, pady = 10)
@@ -246,8 +225,5 @@ if __name__ == "__main__":
 
     blocksButton = tk.Button(buttonContainer, text = "Blocks", command = session.show_blocks, state = tk.DISABLED)
     blocksButton.grid(row = 4, column = 1, padx = 10, pady = 10)
-
-    copyButton = tk.Button(buttonContainer, text = "Copy", command = lambda: session.import_asset(), state = tk.DISABLED)
-    copyButton.grid(row = 4, column = 2, padx = 10, pady = 10)
 
     root.mainloop()
