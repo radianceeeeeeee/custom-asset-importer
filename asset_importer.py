@@ -41,6 +41,9 @@ class Session():
 
     def setup_listbox(self, list):
         fileList.delete(0, END)
+        self.assetsNPC = []
+        self.assetsBlock = []
+        self.directory = ""
 
         for item in list:
             fileList.insert(END, item)
