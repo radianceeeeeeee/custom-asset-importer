@@ -20,12 +20,13 @@ class AssetType(str, Enum):
     BLOCK = "block"
     NPC = "npc"
 
+assetTypeList = ["block", "npc"]
+
 class Extension(str, Enum):
     INI = "ini"
     IMAGE = "png"
     LUA = "lua"
     JSON = "json"
-
 
 class Session():
     def __init__(self):
@@ -135,6 +136,24 @@ class Session():
         availableID = self.find_lowest_available_id(assetType)
         srcPath = os.path.dirname(srcLua)
 
+        # open lua
+        luaLines = open(srcLua, "r").readlines()
+
+        # find required custom libraries
+        for l in range(len(luaLines)):
+            result = luaLines[l].find("require(\"") # I have to use require(" instead of require because it can be used as a part of a variable name
+
+            if result != -1:
+                libraryName = luaLines[l].split()[3][9:-2] # gets the library name
+                srcLib = os.path.join(srcPath, f'{libraryName}.lua')
+
+                if os.path.isfile(srcLib):
+                    # copy the lua library to dstPath
+                    dstLib = os.path.join(dstPath, f'{libraryName}.lua')
+
+                    if not os.path.isfile(dstLib):
+                        shutil.copy(srcLib, dstLib)
+
         # copy lua
         dstLua = os.path.join(dstPath, f'{assetType}-{availableID}.lua')
         shutil.copy(srcLua, dstLua)
@@ -149,18 +168,72 @@ class Session():
         dstIni = os.path.join(dstPath, f'{assetType}-{availableID}.ini')
 
         # edit ini
-        lines = open(srcIni, "r").readlines()
-        i = -1
+        iniLines = open(srcIni, "r").readlines()
+        i = -1      # editor image name
+        e = -1      # extra-settings name
+        isExtSettingsEdited = False
+        isImageEditorDifferent = False
             
-        for l in range(len(lines)):
-            parsed = lines[l].split("=")
-            if parsed[0].strip() == AssetTag.EDITOR_IMAGE:
-                i = l
+        for l in range(len(iniLines)):
+            parsed = iniLines[l].split("=")
 
-        lines[i] = f'image = "{assetType}-{availableID}.png"\n'
-        out = open(dstIni, "w", newline='\r\n')
-        out.writelines(lines)
-        out.close()
+            if len(parsed) != 2:
+                # skip [asset] line and trailing EOF lines
+                continue
+
+            assetTag = parsed[0].strip().replace('"', '')
+            assetValue = parsed[1].strip().replace('"', '')
+
+            if assetTag == AssetTag.EDITOR_IMAGE:
+                # check if there is a separate editor image file
+                editorImageName = assetValue.split(".")[0]
+                i = l
+            elif assetTag == AssetTag.EXT_SETTINGS:
+                # check if we have asset-###.json
+                testSplitString = assetValue[:-5].strip().split("-")
+
+                if len(testSplitString) != 2:
+                    # if it does not follow the format, copy the old name
+                    extName = assetValue
+                    srcExt = os.path.join(srcPath, extName)
+                else:
+                    extType, extID = testSplitString
+
+                    if extType in assetTypeList and extID.isdigit():
+                    # if yes, rename the json based on the new name
+                        e = l
+                        isExtSettingsEdited = True
+                        extName = f'{assetType}-{availableID}.json'
+                        srcExt = os.path.join(srcPath, assetValue)
+                    else:
+                        # if it does not follow the format, copy the old name
+                        extName = parsed[1].strip()
+                        srcExt = os.path.join(srcPath, extName)
+
+                dstExt = os.path.join(dstPath, extName)
+                shutil.copy(srcExt, dstExt)
+                
+            elif assetTag == AssetTag.ICON:
+                # copy icon to dst
+                pass
+
+        if isImageEditorDifferent:
+            iniLines[i] = f'image = "{assetType}-{availableID}e.png"\n'
+        else:
+            iniLines[i] = f'image = "{assetType}-{availableID}.png"\n'
+
+        if isExtSettingsEdited:
+            iniLines[e] = f'extra-settings = "{assetType}-{availableID}.json"\n'
+
+        iniOut = open(dstIni, "w", newline='\r\n')
+        iniOut.writelines(iniLines)
+        iniOut.close()
+
+        # needed to display the file in the listbox
+        if assetType == AssetType.NPC:
+            self.assetsNPC.append(f'{assetType}-{availableID}')
+        elif assetType == AssetType.BLOCK:
+            self.assetsBlock.append(f'{assetType}-{availableID}')
 
     def import_asset(self):
         file = filedialog.askopenfilename(filetypes=[("Lua files", ".lua")])
@@ -173,13 +246,9 @@ class Session():
             assetType = newAsset[0].split("-")[0]
 
             if assetType == AssetType.NPC:
-                self.assetsNPC.append(newAsset[0])
-
                 if self.currentAssetButton == AssetType.NPC:
                     fileList.insert(END, newAsset[1])
             elif assetType == AssetType.BLOCK:
-                self.assetsBlock.append(newAsset[0])
-
                 if self.currentAssetButton == AssetType.BLOCK:
                     fileList.insert(END, newAsset[1])
 
