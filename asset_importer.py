@@ -2,6 +2,7 @@ import os
 import shutil
 from tkinter import filedialog, simpledialog, messagebox
 from tkinter import END
+from PIL import ImageTk, Image
 import tkinter as tk
 from enum import Enum
 
@@ -32,12 +33,12 @@ class Session():
     def __init__(self):
         self.assetsNPC = []
         self.assetsBlock = []
+        self.imagesNPC = []
+        self.imagesBlock = []
         self.directory = ""
         self.currentAssetButton = AssetType.NPC
-        self.assets = {
-            AssetType.NPC: self.assetsNPC,
-            AssetType.BLOCK: self.assetsBlock,
-        }
+        self.selectedAssetIndex = -1
+
 
     def setup_listbox(self, list):
         fileList.delete(0, END)
@@ -52,22 +53,55 @@ class Session():
         fileList.insert(END, item)
 
     def show_NPC(self):
+        global selectedImage, selectedImageLabel
+
         self.currentAssetButton = AssetType.NPC
         fileList.delete(0, END)
+
+        if len(self.imagesNPC) <= 0: return
 
         for item in self.assetsNPC:
             currentAsset = self.find_asset_info(item, self.directory, AssetTag.NAME)
 
             fileList.insert(END, currentAsset[1])
 
+        selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(self.directory, self.imagesNPC[0])))
+        selectedImageLabel.config(image = selectedImage)
+
     def show_blocks(self):
+        global selectedImage, selectedImageLabel
+
         self.currentAssetButton = AssetType.BLOCK
         fileList.delete(0, END)
 
+        if len(self.imagesBlock) <= 0: return
+
         for item in self.assetsBlock:
             currentAsset = self.find_asset_info(item, self.directory, AssetTag.NAME)
+            print(currentAsset)
 
             fileList.insert(END, currentAsset[1])
+
+        selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(self.directory, self.imagesBlock[0])))
+        selectedImageLabel.config(image = selectedImage)
+
+    def preview_image(self):
+        global selectedImage, selectedImageLabel
+
+        if self.currentAssetButton == AssetType.NPC:
+            selectedImageIndex = fileList.curselection()[0]
+
+            selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(self.directory, self.imagesNPC[selectedImageIndex])))
+            selectedImageLabel.config(image = selectedImage)
+        elif self.currentAssetButton == AssetType.BLOCK:
+            selectedImageIndex = fileList.curselection()[0]
+
+            selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(self.directory, self.imagesBlock[selectedImageIndex])))
+            selectedImageLabel.config(image = selectedImage)
+
+    def listbox_clicked(self, event):
+        self.preview_image()
+
 
     def find_asset_info(self, luaName, luaPath, assetTag):
         filename = luaName.split(".")[0]
@@ -86,37 +120,53 @@ class Session():
             return None
 
     def initialize_asset(self):
+        global selectedImage, selectedImageLabel
+
         dir = filedialog.askdirectory()
 
         if dir == '':
             return
 
+        fileList.delete(0, END)
+
         items = os.listdir(dir)
         entries = [f for f in items if f.endswith(".lua")]
 
-        fileList.delete(0, END)
+        importButton.configure(state = tk.NORMAL)
+        NPCButton.configure(state = tk.NORMAL)
+        blocksButton.configure(state = tk.NORMAL)
 
         if len(entries) > 0:
-            importButton.configure(state = tk.NORMAL)
-            NPCButton.configure(state = tk.NORMAL)
-            blocksButton.configure(state = tk.NORMAL)
+            self.selectedAssetIndex = 0
 
             for e in entries:
                 currentAsset = self.find_asset_info(e, dir, AssetTag.NAME)
+                imageAsset = self.find_asset_info(e, dir, AssetTag.EDITOR_IMAGE)
 
                 if currentAsset != None:
                     assetType = currentAsset[0].split("-")[0]                        
 
                     if assetType == AssetType.NPC:
                         self.assetsNPC.append(currentAsset[0])
+                        self.imagesNPC.append(imageAsset[1])
 
                         if self.currentAssetButton == AssetType.NPC:
                             fileList.insert(END, currentAsset[1])
                     elif assetType == AssetType.BLOCK:
                         self.assetsBlock.append(currentAsset[0])
+                        self.imagesBlock.append(imageAsset[1])
 
                         if self.currentAssetButton == AssetType.BLOCK:
                             fileList.insert(END, currentAsset[1])
+            
+            if self.currentAssetButton == AssetType.NPC:
+                if len(self.imagesNPC) > 0:
+                    selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(dir, self.imagesNPC[0])))
+                    selectedImageLabel.config(image = selectedImage)
+            elif self.currentAssetButton == AssetType.BLOCK:
+                if len(self.imagesBlock) > 0:
+                    selectedImage = ImageTk.PhotoImage(Image.open(os.path.join(dir, self.imagesBlock[0])))
+                    selectedImageLabel.config(image = selectedImage)
 
         self.directory = dir
 
@@ -124,16 +174,27 @@ class Session():
         minID = 751
 
         if assetType == AssetType.NPC:
-            asset = "npc"
+            while minID < 1000:
+                if f'npc-{minID}' not in self.assetsNPC:
+                    print(assetType, minID)
+                    return minID
+                minID += 1
         elif assetType == AssetType.BLOCK:
-            asset = "block"
-        
-        while minID < 1000:
-            if f'{asset}-{minID}' not in self.assets[assetType]:
-                return minID
-            minID += 1
+            while minID < 1000:
+                if f'block-{minID}' not in self.assetsBlock:
+                    print(assetType, minID)
+                    return minID
+                minID += 1
         
         return -1
+    
+    def debug_show(self):
+        print("fileList.curselection()", fileList.curselection())
+        print("self.imagesNPC", self.imagesNPC)
+        print("self.imagesBlock", self.imagesBlock)
+        print("self.assetsNPC", self.assetsNPC)
+        print("self.assetsBlock", self.assetsBlock)
+        print("self.selectedAssetIndex", self.selectedAssetIndex)
 
     def copy_assets(self, srcID, srcLua, dstPath, assetType):
         availableID = self.find_lowest_available_id(assetType)
@@ -190,6 +251,14 @@ class Session():
             if assetTag == AssetTag.EDITOR_IMAGE:
                 # check if there is a separate editor image file
                 editorImageName = assetValue.split(".")[0]
+
+                print(editorImageName)
+
+                srcEditorPng = os.path.join(srcPath, f'{editorImageName}.png')
+                dstEditorPng = os.path.join(dstPath, f'{assetType}-{availableID}e.png')
+                shutil.copy(srcEditorPng, dstEditorPng)
+
+                isImageEditorDifferent = True
                 i = l
             elif assetTag == AssetTag.EXT_SETTINGS:
                 # check if we have asset-###.json
@@ -233,10 +302,23 @@ class Session():
         iniOut.close()
 
         # needed to display the file in the listbox
+        newNameAsset = self.find_asset_info(f"{assetType}-{availableID}.lua", dstPath, AssetTag.NAME)
+        newImageAsset = self.find_asset_info(f"{assetType}-{availableID}.lua", dstPath, AssetTag.EDITOR_IMAGE)
+
+        print(newNameAsset)
+
         if assetType == AssetType.NPC:
-            self.assetsNPC.append(f'{assetType}-{availableID}')
+            self.assetsNPC.append(newNameAsset[0])
+            self.imagesNPC.append(newImageAsset[1])
+
+            if self.currentAssetButton == AssetType.NPC:
+                fileList.insert(END, newNameAsset[1])
         elif assetType == AssetType.BLOCK:
-            self.assetsBlock.append(f'{assetType}-{availableID}')
+            self.assetsBlock.append(newNameAsset[0])
+            self.imagesBlock.append(newImageAsset[1])
+
+            if self.currentAssetButton == AssetType.BLOCK:
+                fileList.insert(END, newNameAsset[1])
 
     def import_asset(self):
         file = filedialog.askopenfilename(filetypes=[("Lua files", ".lua")])
@@ -248,18 +330,10 @@ class Session():
         if newAsset != None:
             assetType = newAsset[0].split("-")[0]
 
-            if assetType == AssetType.NPC:
-                if self.currentAssetButton == AssetType.NPC:
-                    fileList.insert(END, newAsset[1])
-            elif assetType == AssetType.BLOCK:
-                if self.currentAssetButton == AssetType.BLOCK:
-                    fileList.insert(END, newAsset[1])
-
             # copying
             self.copy_assets(newAsset[0].split("-")[1], file, self.directory, assetType)
         else:
             messagebox.showerror(title = "Invalid Asset", message = "The asset you have chosen is invalid.")
-
 
 # main program
 if __name__ == "__main__":
@@ -267,7 +341,7 @@ if __name__ == "__main__":
     root.title("Asset Importer")
     root.resizable = False
 
-    #root.geometry(f"{WIDTH_WINDOW}x{HEIGHT_WINDOW}")
+    root.geometry(f"{WIDTH_WINDOW}x{HEIGHT_WINDOW}")
 
     session = Session()
 
@@ -277,16 +351,21 @@ if __name__ == "__main__":
     openButton = tk.Button(importContainer, text = "Open level folder", command = session.initialize_asset)
     openButton.grid(row = 1, column = 0, padx = 10, pady = 10)
 
+    # For debug
+    debugButton = tk.Button(importContainer, text = "Debug", command = session.debug_show)
+    debugButton.grid(row = 1, column = 3, padx = 10, pady = 10)
+
     importButton = tk.Button(importContainer, text = "Import new asset", command = session.import_asset, state = tk.DISABLED)
     importButton.grid(row = 1, column = 1, padx = 10, pady = 10)
 
     filesContainer = tk.LabelFrame(root, text = "Custom Assets in Folder")
-    filesContainer.grid(row = 2, column = 0, padx = 20, pady = 20, )
+    filesContainer.grid(row = 1, column = 0, padx = 20, pady = 20)
 
     folderContainer = tk.LabelFrame(filesContainer, text = "Current Assets")
-    folderContainer.grid(row = 3, column = 0, padx = 10, pady = 10)
+    folderContainer.grid(row = 0, column = 0, padx = 10, pady = 10)
 
     fileList = tk.Listbox(folderContainer)
+    fileList.bind("<ButtonRelease-1>", session.listbox_clicked)
     fileList.grid(row = 5, column = 0, padx = 10, pady = 10)
 
     buttonContainer = tk.LabelFrame(folderContainer, text = "")
@@ -297,5 +376,14 @@ if __name__ == "__main__":
 
     blocksButton = tk.Button(buttonContainer, text = "Blocks", command = session.show_blocks, state = tk.DISABLED)
     blocksButton.grid(row = 4, column = 1, padx = 10, pady = 10)
+
+    # Image preview
+
+    imageContainer = tk.LabelFrame(root, text = "Image Preview")
+    imageContainer.grid(row = 1, column = 1, padx = 20, pady = 20)
+
+    selectedImage = ImageTk.PhotoImage(Image.open("blank.png"))
+    selectedImageLabel = tk.Label(imageContainer, image = selectedImage)
+    selectedImageLabel.grid(row = 0, column = 1, padx = 10, pady = 10)
 
     root.mainloop()
