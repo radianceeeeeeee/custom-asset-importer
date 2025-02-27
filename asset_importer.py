@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from tkinter import filedialog, simpledialog, messagebox
 from tkinter import END
@@ -78,7 +79,6 @@ class Session():
 
         for item in self.assetsBlock:
             currentAsset = self.find_asset_info(item, self.directory, AssetTag.NAME)
-            print(currentAsset)
 
             fileList.insert(END, currentAsset[1])
 
@@ -101,7 +101,6 @@ class Session():
 
     def listbox_clicked(self, event):
         self.preview_image()
-
 
     def find_asset_info(self, luaName, luaPath, assetTag):
         filename = luaName.split(".")[0]
@@ -176,13 +175,11 @@ class Session():
         if assetType == AssetType.NPC:
             while minID < 1000:
                 if f'npc-{minID}' not in self.assetsNPC:
-                    print(assetType, minID)
                     return minID
                 minID += 1
         elif assetType == AssetType.BLOCK:
             while minID < 1000:
                 if f'block-{minID}' not in self.assetsBlock:
-                    print(assetType, minID)
                     return minID
                 minID += 1
         
@@ -200,13 +197,18 @@ class Session():
         availableID = self.find_lowest_available_id(assetType)
         srcPath = os.path.dirname(srcLua)
 
-        # open lua
-        luaLines = open(srcLua, "r").readlines()
+        # copy lua
+        dstLua = os.path.join(dstPath, f'{assetType}-{availableID}.lua')
+        shutil.copy(srcLua, dstLua)
 
-        # find required custom libraries
+        # open lua
+        luaLines = open(dstLua, "r").readlines()
         for l in range(len(luaLines)):
             result = luaLines[l].find("require(\"") # I have to use require(" instead of require because it can be used as a part of a variable name
+            effectSpawn = luaLines[l].find("Effect.spawn(")
+            effectHarmID = luaLines[l].find("[HARM_TYPE_")
 
+            # find required custom libraries
             if result != -1:
                 libraryName = luaLines[l].split()[3][9:-2] # gets the library name
                 srcLib = os.path.join(srcPath, f'{libraryName}.lua')
@@ -218,9 +220,64 @@ class Session():
                     if not os.path.isfile(dstLib):
                         shutil.copy(srcLib, dstLib)
 
-        # copy lua
-        dstLua = os.path.join(dstPath, f'{assetType}-{availableID}.lua')
-        shutil.copy(srcLua, dstLua)
+            # find custom effects
+            if effectSpawn != -1:
+                srcEffectNums = re.findall("\\d+", luaLines[l])
+
+                srcEffect = srcEffectNums[0]
+
+                # copy effect
+                srcEffect = os.path.join(srcPath, f'effect-{srcEffect}.png')
+                dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
+                shutil.copy(srcEffect, dstEffect)
+
+                # change Effect.spawn(oldID) into Effect.spawn(availableID)
+                luaLines[l] = re.sub(r"\b\d+", f'{availableID}', luaLines[l], 1)
+
+                luaOut = open(dstLua, "w", newline='\r\n')
+                luaOut.writelines(luaLines)
+                luaOut.close()
+
+            # find NPC template effects
+            if effectHarmID != -1:
+                commented = re.findall(r"--\s*\[", luaLines[l])
+
+                if commented:
+                    continue
+
+                effectIDMatch = re.findall(r"id=(\d+)", luaLines[l])
+                effectMatch = re.findall(r"(?:\]=(\d+))", luaLines[l])
+
+                if effectIDMatch:
+                    if 750 < int(effectIDMatch[0]) < 1001:
+                        srcEffectID = effectIDMatch[0]
+
+                        # copy effect
+                        srcEffect = os.path.join(srcPath, f'effect-{srcEffectID}.png')
+                        dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
+                        shutil.copy(srcEffect, dstEffect)
+
+                        # change harm type effect ID into the new one
+
+                        luaLines[l] = re.sub(r"\d+", f'{availableID}', luaLines[l], 1)
+                        luaOut = open(dstLua, "w", newline='\r\n')
+                        luaOut.writelines(luaLines)
+                        luaOut.close()
+                elif effectMatch:
+                    if 750 < int(effectMatch[0]) < 1001:
+                        srcEffectID = effectMatch[0]
+
+                        # copy effect
+                        srcEffect = os.path.join(srcPath, f'effect-{srcEffectID}.png')
+                        dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
+                        shutil.copy(srcEffect, dstEffect)
+
+                        # change harm type effect ID into the new one
+                        luaLines[l] = re.sub(r"\d+", f'{availableID}', luaLines[l], 1)
+                        luaOut = open(dstLua, "w", newline='\r\n')
+                        luaOut.writelines(luaLines)
+                        luaOut.close()
+
 
         # copy image
         srcPng = os.path.join(srcPath, f'{assetType}-{srcID}.png')
@@ -249,10 +306,8 @@ class Session():
             assetValue = parsed[1].strip().replace('"', '')
 
             if assetTag == AssetTag.EDITOR_IMAGE:
-                # check if there is a separate editor image file
+                # check if there is a separate editor image file, if yes, copy the editor image as well
                 editorImageName = assetValue.split(".")[0]
-
-                print(editorImageName)
 
                 srcEditorPng = os.path.join(srcPath, f'{editorImageName}.png')
                 dstEditorPng = os.path.join(dstPath, f'{assetType}-{availableID}e.png')
@@ -304,8 +359,6 @@ class Session():
         # needed to display the file in the listbox
         newNameAsset = self.find_asset_info(f"{assetType}-{availableID}.lua", dstPath, AssetTag.NAME)
         newImageAsset = self.find_asset_info(f"{assetType}-{availableID}.lua", dstPath, AssetTag.EDITOR_IMAGE)
-
-        print(newNameAsset)
 
         if assetType == AssetType.NPC:
             self.assetsNPC.append(newNameAsset[0])
