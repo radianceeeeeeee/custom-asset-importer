@@ -21,6 +21,7 @@ class AssetTag(str, Enum):
 class AssetType(str, Enum):
     BLOCK = "block"
     NPC = "npc"
+    EFFECT = "effect"
 
 assetTypeList = ["block", "npc"]
 
@@ -184,22 +185,26 @@ class Session():
                 minID += 1
         
         return -1
-    
-    def debug_show(self):
-        print("fileList.curselection()", fileList.curselection())
-        print("self.imagesNPC", self.imagesNPC)
-        print("self.imagesBlock", self.imagesBlock)
-        print("self.assetsNPC", self.assetsNPC)
-        print("self.assetsBlock", self.assetsBlock)
-        print("self.selectedAssetIndex", self.selectedAssetIndex)
 
-    def copy_assets(self, srcID, srcLua, dstPath, assetType):
-        availableID = self.find_lowest_available_id(assetType)
+    def copy_file(self, srcPath, dstPath, srcID, dstID, assetType, fileType):
+        srcFile = os.path.join(srcPath, f'{assetType}-{srcID}.{fileType.value}')
+        dstFile = os.path.join(dstPath, f'{assetType}-{dstID}.{fileType.value}')
+
+        # copy file
+        try:
+            shutil.copy(srcFile, dstFile)
+            print(f'{srcFile} has been copied!')
+        except:
+            messagebox.showerror(title = "Invalid Asset", message = "The asset you have chosen is invalid.")
+        
+        return dstFile
+
+    def copy_assets(self, srcID, srcLua, dstID, dstPath, assetType):
+        availableID = dstID
         srcPath = os.path.dirname(srcLua)
 
         # copy lua
-        dstLua = os.path.join(dstPath, f'{assetType}-{availableID}.lua')
-        shutil.copy(srcLua, dstLua)
+        dstLua = self.copy_file(srcPath, dstPath, srcID, dstID, assetType, Extension.LUA)
 
         # open lua
         luaLines = open(dstLua, "r").readlines()
@@ -224,12 +229,10 @@ class Session():
             if effectSpawn != -1:
                 srcEffectNums = re.findall("\\d+", luaLines[l])
 
-                srcEffect = srcEffectNums[0]
+                srcEffectID = srcEffectNums[0]
 
                 # copy effect
-                srcEffect = os.path.join(srcPath, f'effect-{srcEffect}.png')
-                dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
-                shutil.copy(srcEffect, dstEffect)
+                dstEffect = self.copy_file(srcPath, dstPath, srcEffectID, availableID, AssetType.EFFECT.value, Extension.IMAGE)
 
                 # change Effect.spawn(oldID) into Effect.spawn(availableID)
                 luaLines[l] = re.sub(r"\b\d+", f'{availableID}', luaLines[l], 1)
@@ -253,12 +256,9 @@ class Session():
                         srcEffectID = effectIDMatch[0]
 
                         # copy effect
-                        srcEffect = os.path.join(srcPath, f'effect-{srcEffectID}.png')
-                        dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
-                        shutil.copy(srcEffect, dstEffect)
+                        dstEffect = self.copy_file(srcPath, dstPath, srcEffectID, availableID, AssetType.EFFECT.value, Extension.IMAGE)
 
                         # change harm type effect ID into the new one
-
                         luaLines[l] = re.sub(r"\d+", f'{availableID}', luaLines[l], 1)
                         luaOut = open(dstLua, "w", newline='\r\n')
                         luaOut.writelines(luaLines)
@@ -268,9 +268,7 @@ class Session():
                         srcEffectID = effectMatch[0]
 
                         # copy effect
-                        srcEffect = os.path.join(srcPath, f'effect-{srcEffectID}.png')
-                        dstEffect = os.path.join(dstPath, f'effect-{availableID}.png')
-                        shutil.copy(srcEffect, dstEffect)
+                        dstEffect = self.copy_file(srcPath, dstPath, srcEffectID, availableID, AssetType.EFFECT.value, Extension.IMAGE)
 
                         # change harm type effect ID into the new one
                         luaLines[l] = re.sub(r"\d+", f'{availableID}', luaLines[l], 1)
@@ -280,16 +278,13 @@ class Session():
 
 
         # copy image
-        srcPng = os.path.join(srcPath, f'{assetType}-{srcID}.png')
-        dstPng = os.path.join(dstPath, f'{assetType}-{availableID}.png')
-        shutil.copy(srcPng, dstPng)
+        dstPng = self.copy_file(srcPath, dstPath, srcID, availableID, assetType, Extension.IMAGE)
 
         # copy ini
-        srcIni = os.path.join(srcPath, f'{assetType}-{srcID}.ini')
-        dstIni = os.path.join(dstPath, f'{assetType}-{availableID}.ini')
+        dstIni = self.copy_file(srcPath, dstPath, srcID, availableID, assetType, Extension.INI)
 
         # edit ini
-        iniLines = open(srcIni, "r").readlines()
+        iniLines = open(dstIni, "r").readlines()
         i = -1      # editor image name
         e = -1      # extra-settings name
         isExtSettingsEdited = False
@@ -309,6 +304,7 @@ class Session():
                 # check if there is a separate editor image file, if yes, copy the editor image as well
                 editorImageName = assetValue.split(".")[0]
 
+                # copy ini
                 srcEditorPng = os.path.join(srcPath, f'{editorImageName}.png')
                 dstEditorPng = os.path.join(dstPath, f'{assetType}-{availableID}e.png')
                 shutil.copy(srcEditorPng, dstEditorPng)
@@ -338,8 +334,7 @@ class Session():
                         srcExt = os.path.join(srcPath, extName)
 
                 dstExt = os.path.join(dstPath, extName)
-                shutil.copy(srcExt, dstExt)
-                
+                shutil.copy(srcExt, dstExt)                
             elif assetTag == AssetTag.ICON:
                 # copy icon to dst
                 pass
@@ -383,8 +378,10 @@ class Session():
         if newAsset != None:
             assetType = newAsset[0].split("-")[0]
 
+            availableID = self.find_lowest_available_id(assetType)
+
             # copying
-            self.copy_assets(newAsset[0].split("-")[1], file, self.directory, assetType)
+            self.copy_assets(newAsset[0].split("-")[1], file, availableID, self.directory, assetType)
         else:
             messagebox.showerror(title = "Invalid Asset", message = "The asset you have chosen is invalid.")
 
@@ -403,10 +400,6 @@ if __name__ == "__main__":
 
     openButton = tk.Button(importContainer, text = "Open level folder", command = session.initialize_asset)
     openButton.grid(row = 1, column = 0, padx = 10, pady = 10)
-
-    # For debug
-    debugButton = tk.Button(importContainer, text = "Debug", command = session.debug_show)
-    debugButton.grid(row = 1, column = 3, padx = 10, pady = 10)
 
     importButton = tk.Button(importContainer, text = "Import new asset", command = session.import_asset, state = tk.DISABLED)
     importButton.grid(row = 1, column = 1, padx = 10, pady = 10)
