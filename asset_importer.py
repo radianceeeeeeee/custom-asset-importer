@@ -40,6 +40,7 @@ class Session():
         self.directory = ""
         self.currentAssetButton = AssetType.NPC
         self.selectedAssetIndex = -1
+        self.blank = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
 
 
     def setup_listbox(self, list):
@@ -428,7 +429,7 @@ if __name__ == "__main__":
     imageContainer = tk.LabelFrame(root, text = "Image Preview")
     imageContainer.grid(row = 1, column = 1, padx = 20, pady = 20)
 
-    selectedImage = ImageTk.PhotoImage(Image.open("blank.png"))
+    selectedImage = ImageTk.PhotoImage(session.blank)
     selectedImageLabel = tk.Label(imageContainer, image = selectedImage)
     selectedImageLabel.grid(row = 0, column = 1, padx = 10, pady = 10)
 
